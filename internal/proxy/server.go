@@ -202,7 +202,8 @@ func (ps *ProxyServer) executeRequestWithRetry(
 
 	// Unified error handling for retries.
 	// Retry policy is fully defined by group.FailoverStatusCodeMatcher (derived from EffectiveConfig).
-	shouldRetryByStatus := resp != nil && shouldFailoverOnStatusCode(resp.StatusCode, group)
+	// Status codes listed in ignored_error_status_codes never trigger retry (handled below).
+	shouldRetryByStatus := resp != nil && shouldFailoverOnStatusCode(resp.StatusCode, group) && !shouldIgnoreStatusCode(resp.StatusCode, group)
 	if err != nil || shouldRetryByStatus {
 		if err != nil && app_errors.IsIgnorableError(err) {
 			logrus.Debugf("Client-side ignorable error for key %s, aborting retries: %v", utils.MaskAPIKey(apiKey.KeyValue), err)
@@ -297,6 +298,15 @@ func shouldFailoverOnStatusCode(statusCode int, group *models.Group) bool {
 	return group.FailoverStatusCodeMatcher.Match(statusCode)
 }
 
+// shouldIgnoreStatusCode reports whether the upstream status code matches the group's
+// ignored_error_status_codes policy. Such responses are treated as normal upstream behavior.
+func shouldIgnoreStatusCode(statusCode int, group *models.Group) bool {
+	if group == nil {
+		return false
+	}
+	return group.IgnoredErrorStatusCodeMatcher.Match(statusCode)
+}
+
 // logRequest is a helper function to create and record a request log.
 func (ps *ProxyServer) logRequest(
 	c *gin.Context,
@@ -328,7 +338,7 @@ func (ps *ProxyServer) logRequest(
 	logEntry := &models.RequestLog{
 		GroupID:      group.ID,
 		GroupName:    group.Name,
-		IsSuccess:    finalError == nil && statusCode < 400,
+		IsSuccess:    finalError == nil && (statusCode < 400 || shouldIgnoreStatusCode(statusCode, group)),
 		SourceIP:     c.ClientIP(),
 		StatusCode:   statusCode,
 		RequestPath:  utils.TruncateString(c.Request.URL.String(), 500),

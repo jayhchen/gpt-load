@@ -34,7 +34,7 @@ func NewSystemSettingsManager() *SystemSettingsManager {
 }
 
 func validateStringSettingValue(key, val string) error {
-	if key == "failover_status_codes" {
+	if key == "failover_status_codes" || key == "ignored_error_status_codes" {
 		if _, err := failover.ParseStatusCodeMatcher(val); err != nil {
 			return fmt.Errorf("invalid value for %s (%q): %w", key, val, err)
 		}
