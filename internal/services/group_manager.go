@@ -84,6 +84,17 @@ func (gm *GroupManager) Initialize() error {
 				g.FailoverStatusCodeMatcher = matcher
 			}
 
+			ignoredMatcher, err := failover.ParseStatusCodeMatcher(g.EffectiveConfig.IgnoredErrorStatusCodes)
+			if err != nil {
+				logrus.WithFields(logrus.Fields{
+					"group_name": g.Name,
+					"spec":       g.EffectiveConfig.IgnoredErrorStatusCodes,
+					"error":      err,
+				}).Warn("Invalid ignored error status codes spec, ignoring")
+			} else {
+				g.IgnoredErrorStatusCodeMatcher = ignoredMatcher
+			}
+
 			// Parse header rules with error handling
 			if len(group.HeaderRules) > 0 {
 				if err := json.Unmarshal(group.HeaderRules, &g.HeaderRuleList); err != nil {
